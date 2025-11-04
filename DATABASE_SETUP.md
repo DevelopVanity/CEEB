@@ -182,3 +182,34 @@ DROP DATABASE IF EXISTS ceeb_entregas;
 3. **Configurar backups automáticos** de la base de datos
 4. **Implementar logging avanzado** para auditoría
 5. **Añadir validaciones adicionales** en el modelo de datos
+
+## Firma electrónica y consideraciones legales/técnicas
+
+El proyecto busca eliminar el papel y soportar firmas digitales (incluso dibujadas desde un celular). A continuación se resumen opciones prácticas y consideraciones legales que conviene revisar con el área legal de la organización:
+
+- Firma autógrafa almacenada como imagen: se guarda una imagen PNG/JPEG de la firma (tabla `firmas.contenido`). Es sencilla, pero es la más cercana a una firma manuscrita y puede considerarse sensible.
+- Firma no autógrafa (recomendada en muchos flujos internos): en lugar de almacenar una imagen de la firma, se puede usar un flujo que combine evidencia y validación, por ejemplo:
+  - Registro de identidad: usuario autenticado (con credenciales y/o MFA) realiza la aceptación.
+  - EVIDENCIA: almacenar un registro con metadatos inmutables (usuario_id, timestamp, IP, user agent, geolocalización opcional) y un hash del documento firmado.
+  - Confirmación adicional: enviar OTP por correo o SMS y guardar la verificación.
+  - Plantillas y consentimiento: mostrar texto claro que indique que la aceptación tiene validez y pedir confirmación explícita.
+
+Aspectos legales a revisar (consultar con asesoría jurídica):
+- Si en tu jurisdicción una firma no autógrafa es suficiente para validar la entrega de equipos.
+- Requisitos de conservación de evidencia y caducidad.
+- Obligaciones de privacidad y manejo de datos personales (GDPR/LLPD/etc.).
+
+Recomendaciones técnicas para implementación:
+- No almacenes contraseñas en texto plano; usa bcrypt o Argon2.
+- Almacena firmas como BLOBs en `firmas.contenido` o mejor: guarda las firmas en un almacenamiento de objetos (S3) y guarda la `ruta_archivo` y `hash` en la BD (tabla `documentos`).
+- Mantén un registro inmutable (audit trail): cada aceptación/firmado debe crear un registro en `movimientos` y `auditoria_entregas` con detalles del evento.
+- Usa TLS en todas las comunicaciones y protege el acceso a los archivos y la base de datos.
+- Para mayor integridad, calcula y guarda un `sha256` del documento/imagen y considera firmarlo con una clave privada del servidor (HMAC) para detectar modificaciones.
+
+Ejemplo de flujo no autógrafo simple:
+1. Usuario autenticado ve el documento en la app.
+2. Presiona "Aceptar y firmar".
+3. Se envía un OTP al correo corporativo del usuario.
+4. Usuario ingresa OTP: la app graba en `movimientos` y genera un `documento` con hash y un registro en `firmas` con tipo `NO_AUTOGRAFA` (puede ser JSON con metadatos).
+
+Este enfoque reduce preocupaciones de privacidad (no se requiere la imagen de la firma) y suele ser suficiente para validaciones internas de entregas. Para procesos legales externos o contratos, se recomienda una solución de firma electrónica con validación legal (ej. proveedores certificados o firma con clave pública/privada).

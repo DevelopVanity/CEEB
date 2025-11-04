@@ -27,6 +27,7 @@ app.get('/', (req, res) => {
 // Importar rutas
 import entregaEquipoRoutes from './src/routes/entregaEquipo.js';
 import authRoutes from './src/routes/auth.js';
+import signatureRoutes from './src/routes/signature.js';
 
 // Rutas de ejemplo - aquí puedes agregar tu lógica
 app.get('/api/test', (req, res) => {
@@ -44,6 +45,9 @@ app.use('/api/entrega-equipo', entregaEquipoRoutes);
 
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
+
+// Rutas de firma
+app.use('/api/signature', signatureRoutes);
 
 // Middleware de manejo de errores
 app.use((err, req, res, next) => {
