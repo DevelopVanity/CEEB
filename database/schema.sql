@@ -1,3 +1,4 @@
+-- Active: 1758296281211@@192.168.0.230@3306@cee_entregas
 -- ============================================================================
 -- ESQUEMA DE BASE DE DATOS PARA SISTEMA DE ENTREGA DE EQUIPOS DE CÓMPUTO
 -- ============================================================================
@@ -23,9 +24,57 @@ CREATE TABLE usuarios (
     activo BOOLEAN DEFAULT TRUE,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    -- Clave pública asociada al usuario (PEM)
+    public_key TEXT,
+    key_fingerprint VARCHAR(128),
     
     INDEX idx_username (username),
     INDEX idx_activo (activo)
+);
+
+-- ============================================================================
+-- TABLA DE FIRMAS / AUDITORÍA DE FIRMAS DIGITALES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS firmas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    entrega_id INT,
+    usuario_id INT NOT NULL,
+    signature TEXT NOT NULL,
+    nonce VARCHAR(128),
+    algoritmo VARCHAR(50) DEFAULT 'ecdsa-sha256',
+    message_hash VARCHAR(256) NOT NULL,
+    fecha_firma TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(500),
+    device_fingerprint VARCHAR(255),
+    public_key TEXT,
+    verificado BOOLEAN DEFAULT FALSE,
+
+    FOREIGN KEY (entrega_id) REFERENCES entregas(id) ON DELETE SET NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+
+    INDEX idx_entrega_id (entrega_id),
+    INDEX idx_usuario_id (usuario_id),
+    INDEX idx_fecha_firma (fecha_firma)
+);
+
+-- ============================================================================
+-- TABLA DE RETOS / NONCES PARA FIRMADO
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS sign_challenges (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nonce VARCHAR(128) NOT NULL UNIQUE,
+    entrega_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    usado BOOLEAN DEFAULT FALSE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_expiracion TIMESTAMP,
+
+    FOREIGN KEY (entrega_id) REFERENCES entregas(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    INDEX idx_nonce (nonce),
+    INDEX idx_entrega_id (entrega_id),
+    INDEX idx_usuario_id (usuario_id)
 );
 
 -- ============================================================================
@@ -42,42 +91,33 @@ CREATE TABLE entregas (
     departamento VARCHAR(100) NOT NULL,
     grupo_trabajo VARCHAR(100) DEFAULT 'Vanity',
     
-    -- Campos condicionales según ubicación
     direccion_ip VARCHAR(15),
     extension VARCHAR(10),
     telefono1 VARCHAR(20),
     telefono2 VARCHAR(20),
     
-    -- Especificaciones de CPU (si aplica)
     procesador VARCHAR(200),
     memoria VARCHAR(100),
     disco_duro VARCHAR(100),
     version_so VARCHAR(100),
     
-    -- Software
     tipo_office VARCHAR(100),
     key_office VARCHAR(500),
     
-    -- Credenciales
     credencial_usuario VARCHAR(100),
     credencial_password VARCHAR(100),
     
-    -- Servicio realizado
     servicio_realizado ENUM('Mantenimiento', 'Equipo Nuevo', 'Asignacion de equipo') NOT NULL,
     
-    -- Información adicional
     adicional TEXT,
     
-    -- Metadatos
     estado ENUM('borrador', 'activa', 'completada', 'cancelada') DEFAULT 'activa',
     creado_por INT NOT NULL,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    -- Relaciones
     FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
     
-    -- Índices
     INDEX idx_sobre (sobre),
     INDEX idx_usuario_sistema (usuario_sistema),
     INDEX idx_ubicacion (ubicacion),
@@ -98,14 +138,11 @@ CREATE TABLE equipos (
     modelo VARCHAR(100),
     numero_serie VARCHAR(100),
     
-    -- Metadatos
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    -- Relaciones
     FOREIGN KEY (entrega_id) REFERENCES entregas(id) ON DELETE CASCADE,
     
-    -- Índices
     INDEX idx_entrega_id (entrega_id),
     INDEX idx_descripcion (descripcion),
     INDEX idx_numero_serie (numero_serie)
@@ -124,11 +161,9 @@ CREATE TABLE auditoria_entregas (
     fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     accion ENUM('CREATE', 'UPDATE', 'DELETE') NOT NULL,
     
-    -- Relaciones
     FOREIGN KEY (entrega_id) REFERENCES entregas(id) ON DELETE CASCADE,
     FOREIGN KEY (modificado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
     
-    -- Índices
     INDEX idx_entrega_id (entrega_id),
     INDEX idx_modificado_por (modificado_por),
     INDEX idx_fecha_modificacion (fecha_modificacion)
@@ -147,10 +182,8 @@ CREATE TABLE sesiones (
     fecha_expiracion TIMESTAMP NOT NULL,
     activa BOOLEAN DEFAULT TRUE,
     
-    -- Relaciones
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
     
-    -- Índices
     INDEX idx_token (token),
     INDEX idx_usuario_id (usuario_id),
     INDEX idx_fecha_expiracion (fecha_expiracion),

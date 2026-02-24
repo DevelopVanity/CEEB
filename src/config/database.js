@@ -3,13 +3,12 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configuración de la base de datos
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  database: process.env.DB_NAME || 'ceeb_entregas',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
   waitForConnections: true,
   connectionLimit: process.env.DB_CONNECTION_LIMIT || 10,
   queueLimit: 0,
@@ -18,23 +17,20 @@ const dbConfig = {
   reconnect: true
 };
 
-// Crear pool de conexiones
 const pool = mysql.createPool(dbConfig);
 
-// Función para probar la conexión
 export const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
-    console.log('✅ Conexión a la base de datos establecida exitosamente');
+    console.log('Conexión a la base de datos establecida exitosamente');
     connection.release();
     return true;
   } catch (error) {
-    console.error('❌ Error al conectar con la base de datos:', error.message);
+    console.error('Error al conectar con la base de datos:', error.message);
     return false;
   }
 };
 
-// Función para ejecutar queries
 export const executeQuery = async (query, params = []) => {
   try {
     const [results] = await pool.execute(query, params);
@@ -45,7 +41,6 @@ export const executeQuery = async (query, params = []) => {
   }
 };
 
-// Función para transacciones
 export const executeTransaction = async (queries) => {
   const connection = await pool.getConnection();
   
@@ -68,7 +63,6 @@ export const executeTransaction = async (queries) => {
   }
 };
 
-// Cerrar el pool de conexiones
 export const closePool = async () => {
   try {
     await pool.end();

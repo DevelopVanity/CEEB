@@ -242,12 +242,75 @@ class EntregaEquipoController {
       }
       
       // En producción, aquí se obtendría la entrega de la base de datos
-      // y se generaría el PDF en el servidor
-      
+      // y se generaría el PDF en el servidor. Para demostración, generamos
+      // un PDF/archivo texto simple y opcionalmente lo enviamos por SMTP.
+
+      const entrega = await EntregaModel.obtenerPorId(parseInt(id));
+
+      if (!entrega) {
+        return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+      }
+
+      // Generar contenido simple como placeholder (en vez de PDF real).
+      const contenido = `Entrega ID: ${entrega.id}\nUsuario: ${entrega.usuario_sistema}\nEquipo: ${entrega.nombre_equipo}\nFecha: ${new Date().toISOString()}`;
+      const buffer = Buffer.from(contenido, 'utf-8');
+
+      // Si se configuran credenciales SMTP en variables de entorno, intentar enviar por correo
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS; // app password de Gmail
+
+      // El frontend puede enviar el campo `smtpFrom` (en body o query) para seleccionar el 'from'
+      const requestedFrom = (req.body && req.body.smtpFrom) || req.query?.from;
+      let smtpFrom = smtpUser;
+
+      if (requestedFrom) {
+        const fromRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (fromRegex.test(requestedFrom)) {
+          smtpFrom = requestedFrom;
+        } else {
+          console.warn('Requested smtpFrom tiene formato inválido, se utilizará el valor por defecto');
+        }
+      }
+
+      if (smtpFrom && smtpUser && smtpFrom.toLowerCase() !== smtpUser.toLowerCase()) {
+        console.warn('smtpFrom difiere de SMTP_USER; Gmail puede sobrescribir o rechazar el header "From".');
+      }
+
+      if (smtpUser && smtpPass) {
+        try {
+          const nodemailer = await import('nodemailer');
+          const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+              user: smtpUser,
+              pass: smtpPass
+            }
+          });
+
+          const mailOptions = {
+            from: smtpFrom,
+            to: entrega.correo,
+            subject: `Entrega de equipo #${entrega.id}`,
+            text: 'Adjunto encontrará el documento de entrega.',
+            attachments: [
+              {
+                filename: `entrega_${entrega.id}.txt`,
+                content: buffer
+              }
+            ]
+          };
+
+          await transporter.sendMail(mailOptions);
+        } catch (mailErr) {
+          console.error('Error al enviar correo SMTP:', mailErr);
+        }
+      }
+
       res.json({
         success: true,
-        message: 'PDF generado exitosamente',
-        pdfUrl: `/api/entrega-equipo/${id}/pdf-download`
+        message: 'PDF (placeholder) generado exitosamente',
+        pdfUrl: `/api/entrega-equipo/${id}/pdf-download`,
+        note: smtpUser && smtpPass ? 'Se intentó enviar el archivo por SMTP.' : 'No se envió por SMTP (no configurado).'
       });
       
     } catch (error) {
